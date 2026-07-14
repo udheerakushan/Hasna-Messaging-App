@@ -1,26 +1,11 @@
-name: hasna_app
-description: A new Flutter project.
-publish_to: 'none'
-version: 1.0.0+1
-
-environment:
-  sdk: '>=3.0.0 <4.0.0'
-
 dependencies:
   flutter:
     sdk: flutter
   flutter_webrtc: ^0.10.0
   permission_handler: ^11.0.1
-  flutter_secure_storage: ^8.0.0
+  flutter_secure_storage: ^8.1.0  # Updated to compatible version
   lottie: ^2.2.0
   qr_flutter: ^4.0.0
-  image_picker: ^0.8.6
+  image_picker: ^0.8.9  # Updated
   crypto: ^3.0.2
-  cryptography: ^2.0.0
-
-dev_dependencies:
-  flutter_test:
-    sdk: flutter
-
-flutter:
-  uses-material-design: true
+  cryptography: ^2.9.0  # Updated for compatibility
