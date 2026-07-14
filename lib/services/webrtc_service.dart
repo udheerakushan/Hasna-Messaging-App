@@ -45,7 +45,7 @@ class WebRTCService {
     if (withDataChannel) {
       _dc = await _pc!.createDataChannel('hasna-data', RTCDataChannelInit());
       _dc?.onMessage = (e) {
-        if (e != null && e.text != null) _inController.add(e.text!);
+        if (e.text != null) _inController.add(e.text!);
       };
       _dc?.onDataChannelState = (s) {
         if (s == RTCDataChannelState.RTCDataChannelOpen) {
@@ -89,7 +89,7 @@ class WebRTCService {
       _pc!.onDataChannel = (dc) {
         _dc = dc;
         _dc?.onMessage = (e) {
-          if (e != null && e.text != null) _inController.add(e.text!);
+          if (e.text != null) _inController.add(e.text!);
         };
       };
     }
