@@ -11,7 +11,15 @@ dependencies:
     sdk: flutter
   flutter_webrtc: ^0.10.0
   permission_handler: ^11.0.1
+  flutter_secure_storage: ^8.0.0
+  lottie: ^2.2.0
+  qr_flutter: ^4.0.0
+  image_picker: ^0.8.6
+  crypto: ^3.0.2
 
 dev_dependencies:
   flutter_test:
     sdk: flutter
+
+flutter:
+  uses-material-design: true

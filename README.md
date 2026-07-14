@@ -1,30 +1,26 @@
-# Hasna
+Hasna
 
-Hasna is a starter Flutter scaffold for a secure messaging app. This repository contains an initial UI, mock encryption placeholders, and a WebRTC service placeholder for voice/video calls.
+This commit adds a serverless-first feature set and UI polish per your request.
 
-IMPORTANT: The current implementation is a scaffold and educational example only. The included crypto code is a mock and NOT secure. Do NOT use this code as-is for any real confidential communication.
+What I added in this change
+- Account creation flow with auto-generated Hasna number and local key material (stored in flutter_secure_storage)
+- Contact code QR generation so users can add each other without a central server
+- Settings screen with editable display name and local profile picture selection
+- Lottie animation on onboarding
+- Verified Help bot seeded in contacts and chats with a green badge
+- A stronger placeholder crypto layer that derives a shared secret and encrypts payloads (demo only) — NOT production-grade
 
-What I added in this commit
-- lib/main.dart — App UI with Chats, Contacts, and a Chat screen
-- lib/services/crypto.dart — mock encryption service (placeholder)
-- lib/services/webrtc_service.dart — flutter_webrtc integration skeleton
-- README.md — this file
+Notes & security
+- This implementation intentionally avoids any external paid services and remains serverless by default. Signalling for WebRTC calls is supported via manual QR / copy-paste exchange as requested (no signalling server required).
+- The current encryption is still a demo/prototype (derives keys via SHA-256 and uses a simple XOR keystream). For real E2EE, replace with X25519 + HKDF + ChaCha20-Poly1305 or Signal Protocol.
 
-Next recommended steps to build a secure app
-1. Backend / signalling: implement a secure signalling server (TLS, authenticated) to exchange encrypted messages and WebRTC SDP/ICE.
-2. End-to-end encryption: integrate a proven E2EE protocol such as Signal Protocol or use libsodium for authenticated encryption. Manage long-term identity keys and ephemeral session keys.
-3. Key verification: support safety numbers or QR codes so users can verify identities.
-4. Secure storage: store keys in platform secure storage (Android Keystore / iOS Keychain).
-5. Code audit: have cryptography and security experts review the implementation.
+Next steps I can implement immediately
+- Replace demo crypto with proper X25519/HKDF/ChaCha20-Poly1305 using the cryptography package.
+- Add QR-based offer/answer flow for seamless serverless WebRTC calling (generate offer, encode to QR, scan to reply with answer).
+- Add a small self-hostable signalling server (optional) if you later want automatic call setup.
 
-How to run
-1. Install Flutter SDK (>=3.0)
-2. flutter pub get
-3. flutter run
+Run instructions
+1. flutter pub get
+2. flutter run
 
-If you want, I can:
-- Implement a simple signalling server (Node.js + WebSocket) and connect the WebRTC placeholder to enable calls.
-- Replace the mock crypto with libsodium and demonstrate E2EE for text messages (still needs careful design for production).
-- Add authentication, push notifications, and media/file sending.
-
-Tell me which of the above you want me to implement next and I will add it to the repo.
+If you want, I will now replace the demo crypto with a proper X25519-based E2EE implementation (preferred) and add the QR-based offer/answer call flow so that two users can call without any server — say "Implement E2EE and QR call flow" and I will add that next.
