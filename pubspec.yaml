@@ -11,12 +11,14 @@ dependencies:
     sdk: flutter
   flutter_webrtc: ^0.10.0
   permission_handler: ^11.0.1
-  flutter_secure_storage: ^8.1.0  # Updated to compatible version
+  flutter_secure_storage: ^8.1.0
   lottie: ^2.2.0
   qr_flutter: ^4.0.0
-  image_picker: ^0.8.9  # Updated
+  image_picker: ^0.8.9
   crypto: ^3.0.2
-  cryptography: ^2.9.0  # Updated for compatibility
+  cryptography: ^2.9.0
+  sqflite: ^2.3.0
+  path: ^1.8.3
 
 dev_dependencies:
   flutter_test:
