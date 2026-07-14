@@ -1,4 +1,4 @@
-package com.example.hasna_app
+package com.hasna.messaging_app
 
 import io.flutter.embedding.android.FlutterActivity
 
