@@ -53,7 +53,7 @@ class WebRTCService {
           for (final m in _sendQueue) {
             _dc?.send(RTCDataChannelMessage(m));
           }
-+          _sendQueue.clear();
+          _sendQueue.clear();
         }
       };
     }
@@ -69,7 +69,11 @@ class WebRTCService {
     final pack = {
       'sdp': localDesc?.sdp ?? offer.sdp,
       'type': localDesc?.type ?? offer.type,
-      'candidates': _localCandidates.map((c) => {'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMlineIndex}).toList()
+      'candidates': _localCandidates.map((c) => {
+        'candidate': c.candidate,
+        'sdpMid': c.sdpMid,
+        'sdpMLineIndex': c.sdpMLineIndex
+      }).toList()
     };
 
     return base64UrlEncode(utf8.encode(jsonEncode(pack)));
@@ -112,7 +116,11 @@ class WebRTCService {
     final pack = {
       'sdp': localDesc?.sdp ?? answer.sdp,
       'type': localDesc?.type ?? answer.type,
-      'candidates': _localCandidates.map((c) => {'candidate': c.candidate, 'sdpMid': c.sdpMid, 'sdpMLineIndex': c.sdpMlineIndex}).toList()
+      'candidates': _localCandidates.map((c) => {
+        'candidate': c.candidate,
+        'sdpMid': c.sdpMid,
+        'sdpMLineIndex': c.sdpMLineIndex
+      }).toList()
     };
 
     return base64UrlEncode(utf8.encode(jsonEncode(pack)));
