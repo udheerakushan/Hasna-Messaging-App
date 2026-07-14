@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -11,7 +12,7 @@ class CallReceiveScreen extends StatefulWidget {
 }
 
 class _CallReceiveScreenState extends State<CallReceiveScreen> {
-  final WebRTCService _webrtc = WebRTCService();
+  final WebRTCService _webrtc = WebRTCService.getOrCreate('placeholder');
   String _offerInput = '';
   String? _answerPackage;
   String _status = '';
@@ -20,7 +21,9 @@ class _CallReceiveScreenState extends State<CallReceiveScreen> {
     if (_offerInput.trim().isEmpty) return;
     setState(() => _status = 'Processing offer...');
     try {
-      final ans = await _webrtc.handleOfferAndCreateAnswerPackage(_offerInput.trim());
+      // since we don't have a peerId here, use a temp id 'remote'
+      final svc = WebRTCService.getOrCreate('remote');
+      final ans = await svc.handleOfferAndCreateAnswerPackage(_offerInput.trim());
       setState(() {
         _answerPackage = ans;
         _status = 'Answer ready. Provide this to the caller.';
@@ -33,12 +36,12 @@ class _CallReceiveScreenState extends State<CallReceiveScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Receive Call (Scan/Paste Offer)')),
+      appBar: AppBar(title: const Text('Receive Offer (Scan/Paste)')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
           children: [
-            const Text('Paste the offer (from caller) here or scan the QR using another device and paste the text'):,
+            const Text('Paste the offer (from caller) here or scan the QR using another device and paste the text'),
             TextField(onChanged: (v) => _offerInput = v, maxLines: 4),
             ElevatedButton(onPressed: _createAnswer, child: const Text('Create Answer & Show QR')),
             const SizedBox(height: 12),

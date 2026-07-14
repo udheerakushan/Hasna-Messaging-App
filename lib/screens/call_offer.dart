@@ -1,5 +1,4 @@
 import 'dart:convert';
-
 import 'package:flutter/material.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 
@@ -14,16 +13,27 @@ class CallOfferScreen extends StatefulWidget {
 }
 
 class _CallOfferScreenState extends State<CallOfferScreen> {
-  final WebRTCService _webrtc = WebRTCService();
+  final WebRTCService _webrtc = WebRTCService.getOrCreate('placeholder');
   String? _offerPackage;
   String _answerInput = '';
   String _status = '';
+
+  @override
+  void initState() {
+    super.initState();
+    // replace placeholder with proper peerId instance
+    final svc = WebRTCService.getOrCreate(widget.peerId);
+    // assign
+    // ignore: avoid_print
+    print('Using WebRTC service for peer ${widget.peerId}');
+  }
 
   Future<void> _createOffer() async {
     setState(() {
       _status = 'Creating offer...';
     });
-    final pack = await _webrtc.createOfferPackage();
+    final svc = WebRTCService.getOrCreate(widget.peerId);
+    final pack = await svc.createOfferPackage();
     setState(() {
       _offerPackage = pack;
       _status = 'Offer ready. Share via QR or copy text and ask peer to provide an answer.';
@@ -34,8 +44,9 @@ class _CallOfferScreenState extends State<CallOfferScreen> {
     if (_answerInput.trim().isEmpty) return;
     setState(() => _status = 'Applying answer...');
     try {
-      await _webrtc.handleAnswerPackage(_answerInput.trim());
-      setState(() => _status = 'Call connected (if NAT allows).');
+      final svc = WebRTCService.getOrCreate(widget.peerId);
+      await svc.handleAnswerPackage(_answerInput.trim());
+      setState(() => _status = 'Connection ready.');
     } catch (e) {
       setState(() => _status = 'Failed to apply answer: $e');
     }
@@ -44,7 +55,7 @@ class _CallOfferScreenState extends State<CallOfferScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: const Text('Start Call (Share Offer)')),
+      appBar: AppBar(title: const Text('Create Offer (Share QR)')),
       body: Padding(
         padding: const EdgeInsets.all(12.0),
         child: Column(
@@ -57,7 +68,7 @@ class _CallOfferScreenState extends State<CallOfferScreen> {
               SelectableText(_offerPackage!),
             ],
             const SizedBox(height: 12),
-            const Text('Paste the answer from the callee here:'),
+            const Text('Paste the answer from the peer here:'),
             TextField(onChanged: (v) => _answerInput = v, maxLines: 3),
             ElevatedButton(onPressed: _submitAnswer, child: const Text('Apply Answer')),
             const SizedBox(height: 12),

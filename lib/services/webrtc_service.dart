@@ -1,18 +1,25 @@
-import 'dart:convert';
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:flutter_webrtc/flutter_webrtc.dart';
 
 class WebRTCService {
-  RTCPeerConnection? _pc;
-  MediaStream? localStream;
-  final List<RTCIceCandidate> _localCandidates = [];
+  static final Map<String, WebRTCService> _instances = {};
 
-  Future<void> initLocalStream() async {
-    if (localStream != null) return;
-    final Map<String, dynamic> mediaConstraints = {'audio': true, 'video': {'facingMode': 'user'}};
-    localStream = await navigator.mediaDevices.getUserMedia(mediaConstraints);
+  final String peerId;
+  RTCPeerConnection? _pc;
+  RTCDataChannel? _dc;
+  final List<RTCIceCandidate> _localCandidates = [];
+  final StreamController<String> _inController = StreamController.broadcast();
+  final List<String> _sendQueue = [];
+
+  WebRTCService._(this.peerId);
+
+  static WebRTCService getOrCreate(String peerId) {
+    return _instances.putIfAbsent(peerId, () => WebRTCService._(peerId));
   }
+
+  Stream<String> get onMessage => _inController.stream;
 
   Future<RTCPeerConnection> _createPeerConnection() async {
     final configuration = {
@@ -27,17 +34,28 @@ class WebRTCService {
     pc.onIceConnectionState = (state) {
       // handle state if needed
     };
+
     return pc;
   }
 
-  Future<String> createOfferPackage() async {
+  Future<String> createOfferPackage({bool withDataChannel = true}) async {
     _localCandidates.clear();
     _pc = await _createPeerConnection();
-    await initLocalStream();
-    if (localStream != null) {
-      for (var track in localStream!.getTracks()) {
-        await _pc?.addTrack(track, localStream!);
-      }
+
+    if (withDataChannel) {
+      _dc = await _pc!.createDataChannel('hasna-data', RTCDataChannelInit());
+      _dc?.onMessage = (e) {
+        if (e != null && e.text != null) _inController.add(e.text!);
+      };
+      _dc?.onDataChannelState = (s) {
+        if (s == RTCDataChannelState.RTCDataChannelOpen) {
+          // flush queue
+          for (final m in _sendQueue) {
+            _dc?.send(RTCDataChannelMessage(m));
+          }
++          _sendQueue.clear();
+        }
+      };
     }
 
     final offer = await _pc!.createOffer({'offerToReceiveVideo': 1, 'offerToReceiveAudio': 1});
@@ -57,16 +75,19 @@ class WebRTCService {
     return base64UrlEncode(utf8.encode(jsonEncode(pack)));
   }
 
-  Future<String> handleOfferAndCreateAnswerPackage(String offerPackageBase64) async {
+  Future<String> handleOfferAndCreateAnswerPackage(String offerPackageBase64, {bool withDataChannel = true}) async {
     _localCandidates.clear();
     final decoded = jsonDecode(utf8.decode(base64Url.decode(offerPackageBase64)));
 
     _pc = await _createPeerConnection();
-    await initLocalStream();
-    if (localStream != null) {
-      for (var track in localStream!.getTracks()) {
-        await _pc?.addTrack(track, localStream!);
-      }
+
+    if (withDataChannel) {
+      _pc!.onDataChannel = (dc) {
+        _dc = dc;
+        _dc?.onMessage = (e) {
+          if (e != null && e.text != null) _inController.add(e.text!);
+        };
+      };
     }
 
     final offer = RTCSessionDescription(decoded['sdp'], decoded['type']);
@@ -112,8 +133,19 @@ class WebRTCService {
     }
   }
 
+  Future<void> sendData(String text) async {
+    if (_dc != null && _dc!.state == RTCDataChannelState.RTCDataChannelOpen) {
+      _dc!.send(RTCDataChannelMessage(text));
+    } else {
+      // queue until channel opens
+      _sendQueue.add(text);
+    }
+  }
+
   void dispose() {
-    localStream?.dispose();
+    _inController.close();
+    _dc?.close();
     _pc?.close();
+    _instances.remove(peerId);
   }
 }
