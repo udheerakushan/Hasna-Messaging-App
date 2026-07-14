@@ -1,3 +1,10 @@
+name: hasna_messaging_app
+description: Hasna Messaging App
+publish_to: 'none'
+version: 1.0.0+1
+environment:
+  sdk: '^3.3.0'
+
 dependencies:
   flutter:
     sdk: flutter
@@ -9,3 +16,11 @@ dependencies:
   image_picker: ^0.8.9  # Updated
   crypto: ^3.0.2
   cryptography: ^2.9.0  # Updated for compatibility
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^2.0.0
+
+flutter:
+  uses-material-design: true
