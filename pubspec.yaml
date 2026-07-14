@@ -2,6 +2,7 @@ name: hasna_messaging_app
 description: Hasna Messaging App
 publish_to: 'none'
 version: 1.0.0+1
+
 environment:
   sdk: '^3.3.0'
 
