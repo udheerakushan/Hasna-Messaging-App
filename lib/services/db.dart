@@ -1,3 +1,4 @@
+import 'dart:convert';
 import 'dart:io';
 
 import 'package:path/path.dart';
@@ -10,7 +11,7 @@ class DBService {
   static Future<void> init() async {
     final docs = await getApplicationDocumentsDirectory();
     final path = join(docs.path, 'hasna.db');
-    _db = await openDatabase(path, version: 2, onCreate: (db, v) async {
+    _db = await openDatabase(path, version: 4, onCreate: (db, v) async {
       await db.execute('''
         CREATE TABLE messages(
           id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -20,7 +21,9 @@ class DBService {
           type TEXT DEFAULT 'text',
           timestamp TEXT,
           status TEXT,
-          reaction TEXT
+          reaction TEXT,
+          forwarded_from TEXT,
+          is_forwarded INTEGER DEFAULT 0
         )
       ''');
       await db.execute('''
@@ -32,14 +35,39 @@ class DBService {
           verified INTEGER DEFAULT 0
         )
       ''');
+      await db.execute('''
+        CREATE TABLE groups(
+          id INTEGER PRIMARY KEY AUTOINCREMENT,
+          name TEXT,
+          members TEXT -- JSON array of peer_ids
+        )
+      ''');
     }, onUpgrade: (db, oldV, newV) async {
       if (oldV < 2) {
-        // add new columns to messages table
         try {
           await db.execute("ALTER TABLE messages ADD COLUMN type TEXT DEFAULT 'text'");
         } catch (_) {}
         try {
           await db.execute("ALTER TABLE messages ADD COLUMN reaction TEXT");
+        } catch (_) {}
+      }
+      if (oldV < 3) {
+        try {
+          await db.execute("ALTER TABLE messages ADD COLUMN forwarded_from TEXT");
+        } catch (_) {}
+        try {
+          await db.execute("ALTER TABLE messages ADD COLUMN is_forwarded INTEGER DEFAULT 0");
+        } catch (_) {}
+      }
+      if (oldV < 4) {
+        try {
+          await db.execute('''
+            CREATE TABLE IF NOT EXISTS groups(
+              id INTEGER PRIMARY KEY AUTOINCREMENT,
+              name TEXT,
+              members TEXT
+            )
+          ''');
         } catch (_) {}
       }
     });
@@ -49,7 +77,15 @@ class DBService {
     await _db?.insert('messages', m);
     // upsert conversation
     final peer = m['peer_id'];
-    final name = m['peer_name'] ?? 'Unknown';
+    String name = m['peer_name'] ?? 'Unknown';
+    // if group id, resolve name from groups table
+    if (peer != null && peer.toString().startsWith('group:')) {
+      final gid = peer.toString().split(':')[1];
+      final res = await _db?.query('groups', where: 'id=?', whereArgs: [gid]);
+      if (res != null && res.isNotEmpty) {
+        name = res.first['name'] as String? ?? name;
+      }
+    }
     final last = m['content'];
     await _db?.rawInsert('INSERT OR REPLACE INTO conversations(peer_id,name,last_message,verified) VALUES(?,?,?,COALESCE((SELECT verified FROM conversations WHERE peer_id=?),0))', [peer, name, last, peer]);
   }
@@ -88,6 +124,25 @@ class DBService {
     final file = File(path);
     await file.writeAsString(jsonStr);
     return path;
+  }
+
+  static Future<List<Map<String, dynamic>>> searchMessages(String query) async {
+    final q = '%${query.replaceAll('%', '\%')}%';
+    final res = await _db?.rawQuery('SELECT * FROM messages WHERE content LIKE ? ORDER BY id ASC', [q]);
+    if (res == null) return [];
+    return res.toList();
+  }
+
+  static Future<int> createGroup(String name, List<String> members) async {
+    final membersJson = jsonEncode(members);
+    final id = await _db?.insert('groups', {'name': name, 'members': membersJson});
+    return id ?? 0;
+  }
+
+  static Future<List<Map<String, dynamic>>> getGroups() async {
+    final res = await _db?.query('groups', orderBy: 'id DESC');
+    if (res == null) return [];
+    return res.map((r) => r).toList();
   }
 
   static Future<String> _getBackupFilePath() async {
