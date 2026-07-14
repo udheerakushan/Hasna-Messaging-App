@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:lottie/lottie.dart';
 import 'package:qr_flutter/qr_flutter.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:path_provider/path_provider.dart';
 
 import 'services/key_storage.dart';
 import 'services/crypto.dart';
@@ -292,6 +293,8 @@ class _ChatScreenState extends State<ChatScreen> {
   void initState() {
     super.initState();
     _loadMessages();
+    // mark as read when opening
+    DBService.markMessagesRead(widget.peerId);
   }
 
   @override
@@ -320,16 +323,21 @@ class _ChatScreenState extends State<ChatScreen> {
       'peer_id': widget.peerId,
       'sender': 'me',
       'content': encrypted,
+      'type': 'text',
       'timestamp': DateTime.now().toIso8601String(),
       'status': 'sent'
     };
 
+    final id = await DBService._db?.insert('messages', msg);
     await DBService.insertMessage(msg);
     setState(() {
       _messages.add(msg);
       _controller.clear();
       _isTyping = false;
     });
+
+    // mark as delivered locally (demo)
+    if (id != null) await DBService.updateMessageStatus(id as int, 'delivered');
 
     // If chatting with the official Hasna Help bot, simulate typing and a canned reply
     if (widget.peerId == '1') {
@@ -340,6 +348,7 @@ class _ChatScreenState extends State<ChatScreen> {
           'peer_id': widget.peerId,
           'sender': 'them',
           'content': 'Hello! This is Hasna Help. How can I assist you?',
+          'type': 'text',
           'timestamp': DateTime.now().toIso8601String(),
           'status': 'delivered'
         };
@@ -352,31 +361,89 @@ class _ChatScreenState extends State<ChatScreen> {
     }
   }
 
-  Widget _buildMessage(Map<String, dynamic> m) {
+  Future<void> _sendImage() async {
+    final picker = ImagePicker();
+    final picked = await picker.pickImage(source: ImageSource.gallery, maxWidth: 1200);
+    if (picked == null) return;
+
+    final bytes = await picked.readAsBytes();
+    final docs = await getApplicationDocumentsDirectory();
+    final file = File('${docs.path}/${DateTime.now().millisecondsSinceEpoch}_${picked.name}');
+    await file.writeAsBytes(bytes);
+
+    // For demo, we store local file path. For real E2EE, encrypt bytes and send via P2P.
+    final msg = {
+      'peer_id': widget.peerId,
+      'sender': 'me',
+      'content': file.path,
+      'type': 'image',
+      'timestamp': DateTime.now().toIso8601String(),
+      'status': 'sent'
+    };
+
+    await DBService.insertMessage(msg);
+    setState(() => _messages.add(msg));
+  }
+
+  Future<void> _addReaction(int msgIndex) async {
+    final msg = _messages[msgIndex];
+    final reactions = ['❤️', '👍', '😂', '😮', '😢', '😡'];
+    final choice = await showModalBottomSheet<String>(context: context, builder: (_) {
+      return GridView.count(
+        crossAxisCount: 6,
+        children: reactions.map((r) => InkWell(onTap: () => Navigator.of(context).pop(r), child: Center(child: Text(r, style: const TextStyle(fontSize: 24))))).toList(),
+      );
+    });
+    if (choice != null) {
+      final idRes = await DBService._db?.rawQuery('SELECT id FROM messages WHERE timestamp=? AND peer_id=?', [msg['timestamp'], msg['peer_id']]);
+      int? id;
+      if (idRes != null && idRes.isNotEmpty) id = idRes.first['id'] as int?;
+      if (id != null) await DBService.addReaction(id, choice);
+      setState(() {
+        _messages[msgIndex]['reaction'] = choice;
+      });
+    }
+  }
+
+  Widget _buildMessage(Map<String, dynamic> m, int index) {
     final isMe = m['sender'] == 'me';
     final time = DateTime.parse(m['timestamp']);
     final formattedTime = '${time.hour.toString().padLeft(2,'0')}:${time.minute.toString().padLeft(2,'0')}';
     String content = m['content'];
-    if (!isMe && m['content'] != null) {
-      // For the demo bot, show the plaintext reply directly
-      if (widget.peerId == '1') {
-        // bot replies are stored in plaintext
-        content = m['content'];
-      } else {
-        // else keep ciphertext visible (real clients would decrypt)
-        content = m['content'];
-      }
-    }
 
-    return Align(
-      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
-      child: Container(
-        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
-        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
-        decoration: BoxDecoration(
-          color: isMe ? Colors.indigo[300] : Colors.grey[300],
-          borderRadius: BorderRadius.circular(12),
+    Widget messageBody;
+    if (m['type'] == 'image') {
+      final file = File(content);
+      messageBody = GestureDetector(
+        onLongPress: () => _addReaction(index),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.end,
+          children: [
+            Image.file(file, width: 200, height: 200, fit: BoxFit.cover),
+            const SizedBox(height: 6),
+            Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                Text(formattedTime, style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.black54)),
+                const SizedBox(width: 6),
+                if (isMe) Icon(Icons.check, size: 12, color: Colors.white70),
+              ],
+            ),
+            if (m['reaction'] != null) Text(m['reaction'], style: const TextStyle(fontSize: 18))
+          ],
         ),
+      );
+    } else {
+      if (!isMe && m['content'] != null) {
+        if (widget.peerId == '1') {
+          content = m['content'];
+        } else {
+          content = m['content'];
+        }
+      }
+
+      messageBody = GestureDetector(
+        onLongPress: () => _addReaction(index),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.end,
           mainAxisSize: MainAxisSize.min,
@@ -388,11 +455,25 @@ class _ChatScreenState extends State<ChatScreen> {
               children: [
                 Text(formattedTime, style: TextStyle(fontSize: 10, color: isMe ? Colors.white70 : Colors.black54)),
                 const SizedBox(width: 6),
-                if (isMe) Icon(Icons.check, size: 12, color: Colors.white70),
+                if (isMe) Icon(m['status'] == 'read' ? Icons.done_all : Icons.check, size: 12, color: Colors.white70),
               ],
-            )
+            ),
+            if (m['reaction'] != null) Text(m['reaction'], style: const TextStyle(fontSize: 18))
           ],
         ),
+      );
+    }
+
+    return Align(
+      alignment: isMe ? Alignment.centerRight : Alignment.centerLeft,
+      child: Container(
+        margin: const EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+        decoration: BoxDecoration(
+          color: isMe ? Colors.indigo[300] : Colors.grey[300],
+          borderRadius: BorderRadius.circular(12),
+        ),
+        child: messageBody,
       ),
     );
   }
@@ -425,7 +506,7 @@ class _ChatScreenState extends State<ChatScreen> {
                     ),
                   );
                 }
-                return _buildMessage(_messages[index]);
+                return _buildMessage(_messages[index], index);
               },
             ),
           ),
@@ -435,13 +516,13 @@ class _ChatScreenState extends State<ChatScreen> {
             padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 6),
             child: Row(
               children: [
+                IconButton(icon: const Icon(Icons.image), onPressed: _sendImage),
                 Expanded(
                   child: TextField(
                     controller: _controller,
                     decoration: const InputDecoration(hintText: 'Type a message'),
                     onChanged: (v) {
                       setState(() => _isTyping = v.isNotEmpty);
-                      // In a real P2P setup, here you'd send a typing signal to the peer via a data channel or signalling server.
                     },
                   ),
                 ),

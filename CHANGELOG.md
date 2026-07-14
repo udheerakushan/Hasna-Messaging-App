@@ -1,1 +1,1 @@
-(updated) integrated call screens and navigation
+Added read receipts, message reactions, and encrypted-media-send demo (image picker).
